@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Server Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Discord Server Manager</h1>
+            <p class="subtitle">Manage your Discord server channels with ease</p>
+        </header>
+
+        <!-- Token Input Section -->
+        <section class="card token-section">
+            <h2>🔐 Authentication</h2>
+            <div class="input-group">
+                <label for="token">Discord Bot Token</label>
+                <input type="password" id="token" placeholder="Enter your Discord bot token">
+                <button id="saveToken" class="btn btn-primary">Save Token</button>
+            </div>
+            <div class="input-group">
+                <label for="serverId">Server ID</label>
+                <input type="text" id="serverId" placeholder="Enter your server ID">
+            </div>
+            <div class="warning">
+                ⚠️ <strong>Security Notice:</strong> Your token is stored locally in your browser. Never share your token with anyone!
+            </div>
+        </section>
+
+        <!-- Server Info Section -->
+        <section class="card" id="serverInfo" style="display: none;">
+            <h2>📊 Server Information</h2>
+            <div id="serverDetails"></div>
+        </section>
+
+        <!-- Channel Management Section -->
+        <section class="card">
+            <h2>📁 Channel Management</h2>
+            
+            <!-- Delete Channels -->
+            <div class="feature-box">
+                <h3>🗑️ Delete Channels</h3>
+                <div class="input-group">
+                    <label for="categorySelect">Select Category (or leave empty for all channels)</label>
+                    <select id="categorySelect">
+                        <option value="">All Channels</option>
+                    </select>
+                </div>
+                <button id="deleteChannels" class="btn btn-danger">Delete Selected Channels</button>
+                <div class="info">
+                    <strong>Note:</strong> This will permanently delete channels. This action cannot be undone!
+                </div>
+            </div>
+
+            <!-- Rename Channels -->
+            <div class="feature-box">
+                <h3>✏️ Modify Channel Names</h3>
+                <div class="input-group">
+                    <label for="symbolInput">Add Symbol/Prefix</label>
+                    <input type="text" id="symbolInput" placeholder="e.g., ⭐, 🔥, [NEW]" maxlength="10">
+                </div>
+                <div class="input-group">
+                    <label for="fontStyle">Font Style</label>
+                    <select id="fontStyle">
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold (using special characters)</option>
+                        <option value="italic">Italic (using special characters)</option>
+                        <option value="monospace">Monospace</option>
+                        <option value="smallcaps">Small Caps</option>
+                        <option value="circled">Circled Numbers</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="renameCategorySelect">Select Category (or leave empty for all channels)</label>
+                    <select id="renameCategorySelect">
+                        <option value="">All Channels</option>
+                    </select>
+                </div>
+                <button id="renameChannels" class="btn btn-primary">Apply Changes</button>
+            </div>
+        </section>
+
+        <!-- Discohook Section -->
+        <section class="card">
+            <h2>🔗 Discohook Integration</h2>
+            
+            <div class="feature-box">
+                <h3>📤 Send Webhook Message</h3>
+                <div class="input-group">
+                    <label for="webhookUrl">Webhook URL</label>
+                    <input type="text" id="webhookUrl" placeholder="https://discord.com/api/webhooks/...">
+                </div>
+                <div class="input-group">
+                    <label for="messageContent">Message Content</label>
+                    <textarea id="messageContent" rows="3" placeholder="Enter your message content"></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="username">Username (optional)</label>
+                    <input type="text" id="username" placeholder="Custom username">
+                </div>
+                <div class="input-group">
+                    <label for="avatarUrl">Avatar URL (optional)</label>
+                    <input type="text" id="avatarUrl" placeholder="https://...">
+                </div>
+                <button id="sendWebhook" class="btn btn-primary">Send Webhook Message</button>
+            </div>
+
+            <div class="feature-box">
+                <h3>🎨 Create Rich Embed</h3>
+                <div class="embed-builder">
+                    <div class="input-group">
+                        <label for="embedTitle">Title</label>
+                        <input type="text" id="embedTitle" placeholder="Embed title">
+                    </div>
+                    <div class="input-group">
+                        <label for="embedDescription">Description</label>
+                        <textarea id="embedDescription" rows="3" placeholder="Embed description"></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="embedColor">Color (hex)</label>
+                        <input type="color" id="embedColor" value="#5865F2">
+                    </div>
+                    <div class="input-group">
+                        <label for="embedFooter">Footer</label>
+                        <input type="text" id="embedFooter" placeholder="Footer text">
+                    </div>
+                    <div class="input-group">
+                        <label for="embedImageUrl">Image URL</label>
+                        <input type="text" id="embedImageUrl" placeholder="https://...">
+                    </div>
+                    <div class="input-group">
+                        <label for="embedThumbnailUrl">Thumbnail URL</label>
+                        <input type="text" id="embedThumbnailUrl" placeholder="https://...">
+                    </div>
+                    <button id="sendEmbed" class="btn btn-primary">Send Embed</button>
+                </div>
+            </div>
+
+            <div class="feature-box">
+                <h3>🔗 Create Share Link</h3>
+                <div class="input-group">
+                    <label for="shareLinkData">Message Data (JSON)</label>
+                    <textarea id="shareLinkData" rows="5" placeholder='{"content": "Hello!", "embeds": [...]}'></textarea>
+                </div>
+                <button id="createShareLink" class="btn btn-primary">Create Share Link</button>
+                <div id="shareLinkResult" class="result-box"></div>
+            </div>
+        </section>
+
+        <!-- Results/Logs Section -->
+        <section class="card">
+            <h2>📋 Activity Log</h2>
+            <div id="logs" class="logs"></div>
+            <button id="clearLogs" class="btn btn-secondary">Clear Logs</button>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
