@@ -74,6 +74,7 @@ function setupEventListeners() {
     document.getElementById('serverId').addEventListener('change', onServerIdChange);
     document.getElementById('deleteChannels').addEventListener('click', deleteChannels);
     document.getElementById('renameChannels').addEventListener('click', renameChannels);
+    document.getElementById('copyChannels').addEventListener('click', copyChannels);
     document.getElementById('sendWebhook').addEventListener('click', sendWebhook);
     document.getElementById('sendEmbed').addEventListener('click', sendEmbed);
     document.getElementById('createShareLink').addEventListener('click', createShareLink);
@@ -229,10 +230,12 @@ function updateServerInfo() {
 function updateCategorySelects() {
     const categorySelect = document.getElementById('categorySelect');
     const renameCategorySelect = document.getElementById('renameCategorySelect');
+    const copySourceCategory = document.getElementById('copySourceCategory');
     
-    // Clear existing options (except "All Channels")
+    // Clear existing options
     categorySelect.innerHTML = '<option value="">All Channels</option>';
     renameCategorySelect.innerHTML = '<option value="">All Channels</option>';
+    copySourceCategory.innerHTML = '<option value="">Select a category...</option>';
     
     // Add categories
     categories.forEach(category => {
@@ -245,6 +248,11 @@ function updateCategorySelects() {
         option2.value = category.id;
         option2.textContent = category.name;
         renameCategorySelect.appendChild(option2);
+        
+        const option3 = document.createElement('option');
+        option3.value = category.id;
+        option3.textContent = category.name;
+        copySourceCategory.appendChild(option3);
     });
 }
 
@@ -256,21 +264,33 @@ async function deleteChannels() {
     }
     
     const categoryId = document.getElementById('categorySelect').value;
+    const deleteCategoryItself = document.getElementById('deleteCategoryItself').checked;
     
-    if (!confirm('Are you sure you want to delete these channels? This action cannot be undone!')) {
+    if (!confirm('Are you sure you want to delete these channels/category? This action cannot be undone!')) {
         return;
     }
     
     try {
         let channelsToDelete = [];
+        let categoryToDelete = null;
         
         if (categoryId) {
-            // Get channels in category
-            const categoryChannels = channels.filter(ch => 
-                ch.parent_id === categoryId && (ch.type === 0 || ch.type === 2)
-            );
-            channelsToDelete = categoryChannels;
-            log(`Deleting ${categoryChannels.length} channels from category...`, 'warning');
+            if (deleteCategoryItself) {
+                // Delete the category itself
+                categoryToDelete = categories.find(cat => cat.id === categoryId);
+                if (!categoryToDelete) {
+                    alert('Category not found');
+                    return;
+                }
+                log(`Deleting category: ${categoryToDelete.name}`, 'warning');
+            } else {
+                // Get channels in category
+                const categoryChannels = channels.filter(ch => 
+                    ch.parent_id === categoryId && (ch.type === 0 || ch.type === 2)
+                );
+                channelsToDelete = categoryChannels;
+                log(`Deleting ${categoryChannels.length} channels from category...`, 'warning');
+            }
         } else {
             // Get all channels (excluding categories)
             channelsToDelete = channels.filter(ch => ch.type === 0 || ch.type === 2);
@@ -280,18 +300,33 @@ async function deleteChannels() {
         let deleted = 0;
         let failed = 0;
         
-        for (const channel of channelsToDelete) {
+        // Delete channels first (if deleting category, channels will be deleted automatically)
+        if (!deleteCategoryItself || !categoryId) {
+            for (const channel of channelsToDelete) {
+                try {
+                    await discordRequest(`/channels/${channel.id}`, 'DELETE');
+                    log(`Deleted channel: ${channel.name}`, 'success');
+                    deleted++;
+                } catch (error) {
+                    log(`Failed to delete ${channel.name}: ${error.message}`, 'error');
+                    failed++;
+                }
+                
+                // Rate limit protection
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        // Delete category itself if requested
+        if (deleteCategoryItself && categoryToDelete) {
             try {
-                await discordRequest(`/channels/${channel.id}`, 'DELETE');
-                log(`Deleted channel: ${channel.name}`, 'success');
+                await discordRequest(`/channels/${categoryToDelete.id}`, 'DELETE');
+                log(`Deleted category: ${categoryToDelete.name}`, 'success');
                 deleted++;
             } catch (error) {
-                log(`Failed to delete ${channel.name}: ${error.message}`, 'error');
+                log(`Failed to delete category ${categoryToDelete.name}: ${error.message}`, 'error');
                 failed++;
             }
-            
-            // Rate limit protection
-            await new Promise(resolve => setTimeout(resolve, 500));
         }
         
         log(`Deletion complete: ${deleted} deleted, ${failed} failed`, deleted > 0 ? 'success' : 'error');
@@ -394,6 +429,187 @@ async function renameChannels() {
     } catch (error) {
         log(`Error renaming channels: ${error.message}`, 'error');
     }
+}
+
+async function copyChannels() {
+    if (!token || !serverId) {
+        alert('Please set token and server ID first');
+        return;
+    }
+    
+    const sourceCategoryId = document.getElementById('copySourceCategory').value;
+    const destinationServerId = document.getElementById('copyDestinationServer').value.trim();
+    const destinationCategoryId = document.getElementById('copyDestinationCategory').value.trim();
+    
+    if (!sourceCategoryId) {
+        alert('Please select a source category');
+        return;
+    }
+    
+    try {
+        // Find source category
+        const sourceCategory = categories.find(cat => cat.id === sourceCategoryId);
+        if (!sourceCategory) {
+            alert('Source category not found');
+            return;
+        }
+        
+        // Get channels in source category
+        const sourceChannels = channels.filter(ch => 
+            ch.parent_id === sourceCategoryId && (ch.type === 0 || ch.type === 2 || ch.type === 15 || ch.type === 13)
+        );
+        
+        if (sourceChannels.length === 0) {
+            alert('No channels found in selected category');
+            return;
+        }
+        
+        log(`Copying ${sourceChannels.length} channels from category: ${sourceCategory.name}`, 'info');
+        
+        // Prepare channel data for JSON export
+        const channelData = {
+            source_server_id: serverId,
+            source_server_name: serverData.name,
+            source_category_id: sourceCategoryId,
+            source_category_name: sourceCategory.name,
+            channels: [],
+            created_at: new Date().toISOString()
+        };
+        
+        // Process each channel
+        for (const sourceChannel of sourceChannels) {
+            const channelInfo = {
+                id: sourceChannel.id,
+                name: sourceChannel.name,
+                type: sourceChannel.type,
+                type_name: getChannelTypeName(sourceChannel.type),
+                position: sourceChannel.position,
+                topic: sourceChannel.topic || null,
+                nsfw: sourceChannel.nsfw || false,
+                bitrate: sourceChannel.bitrate || null,
+                user_limit: sourceChannel.user_limit || null,
+                slowmode_delay: sourceChannel.rate_limit_per_user || null
+            };
+            
+            channelData.channels.push(channelInfo);
+        }
+        
+        // Generate and download JSON file
+        const jsonString = JSON.stringify(channelData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `channels_${sourceCategory.name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        log(`JSON file generated: ${a.download}`, 'success');
+        
+        // If destination server is provided, create channels there
+        if (destinationServerId) {
+            log(`Creating channels in destination server: ${destinationServerId}`, 'info');
+            
+            let created = 0;
+            let failed = 0;
+            
+            // Get destination server channels to find destination category
+            let destCategory = null;
+            if (destinationCategoryId) {
+                try {
+                    const destChannels = await discordRequest(`/guilds/${destinationServerId}/channels`);
+                    destCategory = destChannels.find(ch => ch.id === destinationCategoryId && ch.type === 4);
+                    if (!destCategory) {
+                        log(`Warning: Destination category ${destinationCategoryId} not found`, 'warning');
+                    }
+                } catch (error) {
+                    log(`Warning: Could not verify destination category: ${error.message}`, 'warning');
+                }
+            }
+            
+            for (const sourceChannel of sourceChannels) {
+                try {
+                    const channelPayload = {
+                        name: sourceChannel.name,
+                        type: sourceChannel.type,
+                        position: sourceChannel.position
+                    };
+                    
+                    if (sourceChannel.type === 0) {
+                        // Text channel
+                        channelPayload.topic = sourceChannel.topic || null;
+                        channelPayload.nsfw = sourceChannel.nsfw || false;
+                        channelPayload.rate_limit_per_user = sourceChannel.rate_limit_per_user || 0;
+                    } else if (sourceChannel.type === 2) {
+                        // Voice channel
+                        channelPayload.bitrate = sourceChannel.bitrate || 64000;
+                        channelPayload.user_limit = sourceChannel.user_limit || 0;
+                    }
+                    
+                    if (destCategory) {
+                        channelPayload.parent_id = destCategory.id;
+                    }
+                    
+                    const newChannel = await discordRequest(`/guilds/${destinationServerId}/channels`, 'POST', channelPayload);
+                    
+                    // Update JSON with new channel ID
+                    const channelDataEntry = channelData.channels.find(ch => ch.id === sourceChannel.id);
+                    if (channelDataEntry) {
+                        channelDataEntry.destination_id = newChannel.id;
+                        channelDataEntry.destination_name = newChannel.name;
+                    }
+                    
+                    log(`Created channel: ${newChannel.name} (${newChannel.id})`, 'success');
+                    created++;
+                } catch (error) {
+                    log(`Failed to create channel ${sourceChannel.name}: ${error.message}`, 'error');
+                    failed++;
+                }
+                
+                // Rate limit protection
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            // Update JSON with results
+            channelData.destination_server_id = destinationServerId;
+            channelData.destination_category_id = destinationCategoryId || null;
+            channelData.created_count = created;
+            channelData.failed_count = failed;
+            
+            // Download updated JSON
+            const updatedJsonString = JSON.stringify(channelData, null, 2);
+            const updatedBlob = new Blob([updatedJsonString], { type: 'application/json' });
+            const updatedUrl = URL.createObjectURL(updatedBlob);
+            const updatedA = document.createElement('a');
+            updatedA.href = updatedUrl;
+            updatedA.download = `channels_${sourceCategory.name.replace(/[^a-z0-9]/gi, '_')}_with_destination_${Date.now()}.json`;
+            document.body.appendChild(updatedA);
+            updatedA.click();
+            document.body.removeChild(updatedA);
+            URL.revokeObjectURL(updatedUrl);
+            
+            log(`Copy complete: ${created} created, ${failed} failed`, created > 0 ? 'success' : 'error');
+        } else {
+            log(`Channel data exported to JSON file. Total channels: ${sourceChannels.length}`, 'success');
+        }
+    } catch (error) {
+        log(`Error copying channels: ${error.message}`, 'error');
+        alert(`Error copying channels: ${error.message}`);
+    }
+}
+
+function getChannelTypeName(type) {
+    const types = {
+        0: 'text',
+        2: 'voice',
+        4: 'category',
+        5: 'news',
+        13: 'stage',
+        15: 'forum'
+    };
+    return types[type] || 'unknown';
 }
 
 // Discohook Integration

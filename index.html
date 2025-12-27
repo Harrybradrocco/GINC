@@ -52,9 +52,37 @@
                         <option value="">All Channels</option>
                     </select>
                 </div>
+                <div class="input-group">
+                    <label>
+                        <input type="checkbox" id="deleteCategoryItself"> Delete the category itself (not just channels in it)
+                    </label>
+                </div>
                 <button id="deleteChannels" class="btn btn-danger">Delete Selected Channels</button>
                 <div class="info">
-                    <strong>Note:</strong> This will permanently delete channels. This action cannot be undone!
+                    <strong>Note:</strong> This will permanently delete channels/categories. This action cannot be undone!
+                </div>
+            </div>
+
+            <!-- Copy Channels -->
+            <div class="feature-box">
+                <h3>📋 Copy Channels</h3>
+                <div class="input-group">
+                    <label for="copySourceCategory">Source Category</label>
+                    <select id="copySourceCategory">
+                        <option value="">Select a category...</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="copyDestinationServer">Destination Server ID (optional - leave empty to just export JSON)</label>
+                    <input type="text" id="copyDestinationServer" placeholder="Enter destination server ID">
+                </div>
+                <div class="input-group">
+                    <label for="copyDestinationCategory">Destination Category ID (optional)</label>
+                    <input type="text" id="copyDestinationCategory" placeholder="Enter destination category ID">
+                </div>
+                <button id="copyChannels" class="btn btn-primary">Copy Channels & Generate JSON</button>
+                <div class="info">
+                    <strong>Note:</strong> This will copy channel information and generate a JSON file. If destination server is provided, channels will be created there.
                 </div>
             </div>
 
